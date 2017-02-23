@@ -1,5 +1,6 @@
 package me.rayyeung.permissiondemo;
 
+import android.Manifest;
 import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
@@ -15,7 +16,9 @@ public class SplashActivity extends AppCompatActivity {
         setContentView(R.layout.activity_splash);
         PermissionUtils utils = PermissionUtils.getInstance();
         //utils.setBtnBackgroundResource(R.drawable.shape_btn_bg);
-        utils.setDescriptions(new String[]{"权限1","权限2","权限3"});
+        //utils.setDescriptions(new String[]{"权限1","权限2","权限3"});
+        utils.getDescriptions()[2] = "手机信息";
+        utils.getPermissions()[2] = Manifest.permission.READ_PHONE_STATE;
         utils.checkMutiPermission(this, new PermissionUtils.Callback() {
             @Override
             public void onClose() {
@@ -35,4 +38,6 @@ public class SplashActivity extends AppCompatActivity {
             }
         });
     }
+
+
 }

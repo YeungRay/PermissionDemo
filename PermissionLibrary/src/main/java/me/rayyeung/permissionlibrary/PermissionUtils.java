@@ -2,8 +2,10 @@ package me.rayyeung.permissionlibrary;
 
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.os.Build;
+import android.os.Process;
 import android.support.annotation.DrawableRes;
 import android.support.v4.content.ContextCompat;
 
@@ -15,11 +17,15 @@ import static android.Manifest.permission.WRITE_EXTERNAL_STORAGE;
 
 /**
  * 权限管理工具
- * 注意！！！一定要AndroidManifest.xml中申请权限
- *
+ * 注意！！！一定要在AndroidManifest.xml中申请权限
+ * <p>
  * Created by RayYeung on 2016/9/9.
  */
 public class PermissionUtils {
+
+    private static final String COUNT = "count";
+    private static final String KEY_PREFIX = "permission";
+    private static final String PID = "pid";
 
     //默认3种常用权限
     private String[] permissions = {WRITE_EXTERNAL_STORAGE, ACCESS_FINE_LOCATION, CAMERA};
@@ -30,7 +36,6 @@ public class PermissionUtils {
     private Callback permissionCallback;
     private SingleCallback perPermissionCallback;
 
-    private boolean isOpen;
 
     private int btnBackgroundResource = 0;
 
@@ -80,6 +85,28 @@ public class PermissionUtils {
         return descriptions;
     }
 
+    public int getImage(String permission) {
+        int image = 0;
+        for (int i = 0; i < permissions.length; i++) {
+            if (permissions[i].equals(permission)) {
+                image = images[i];
+                break;
+            }
+        }
+        return image;
+    }
+
+    public String getDescription(String permission) {
+        String description = null;
+        for (int i = 0; i < permissions.length; i++) {
+            if (permissions[i].equals(permission)) {
+                description = descriptions[i];
+                break;
+            }
+        }
+        return description;
+    }
+
     /***
      * 设置权限描述
      *
@@ -115,7 +142,19 @@ public class PermissionUtils {
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
             return false;
         }
+        SharedPreferences sp = context.getSharedPreferences(PermissionActivity.SP_NAME, Context.MODE_PRIVATE);
+        int pid = sp.getInt(PID, 0);
+        if (Process.myPid() != pid) { //不在同一个进程
+            int count = sp.getInt(COUNT, 0);
+            if (count == 0) return false;
+            SharedPreferences.Editor editor = sp.edit();
+            permissions = new String[count];
+            for (int i = 0; i < count; i++) {
+                permissions[i] = sp.getString(KEY_PREFIX + i, "");
+            }
+        }
         for (String p : permissions) {
+            System.out.println(p);
             if (!checkPermission(context, p)) {
                 return true;
             }
@@ -142,6 +181,15 @@ public class PermissionUtils {
             }
         }
         if (flag) {
+            //保存需要申请的权限
+            SharedPreferences sp = context.getSharedPreferences(PermissionActivity.SP_NAME, Context.MODE_PRIVATE);
+            SharedPreferences.Editor editor = sp.edit();
+            editor.putInt(PID, Process.myPid());
+            editor.putInt(COUNT, permissions.length);
+            for (int i = 0; i < permissions.length; i++) {
+                editor.putString(KEY_PREFIX + i, permissions[i]);
+            }
+            editor.commit();
             permissionCallback = callback;
             context.startActivity(new Intent(context, PermissionActivity.class));
         } else {
@@ -189,14 +237,6 @@ public class PermissionUtils {
     }
 
 
-    public void openActivity() {
-        isOpen = true;
-    }
-
-    public boolean isOpen() {
-        return isOpen;
-    }
-
     public void onDeny() {
         perPermissionCallback.onDeny();
     }
@@ -206,13 +246,13 @@ public class PermissionUtils {
     }
 
     public void close() {
-        isOpen = false;
-        permissionCallback.onClose();
+        if (permissionCallback != null)
+            permissionCallback.onClose();
     }
 
     public void finish() {
-        isOpen = false;
-        permissionCallback.onFinish();
+        if (permissionCallback != null)
+            permissionCallback.onFinish();
     }
 
     /**

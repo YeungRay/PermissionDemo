@@ -3,6 +3,7 @@ package me.rayyeung.permissionlibrary;
 import android.app.AlertDialog;
 import android.content.DialogInterface;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Bundle;
@@ -10,7 +11,6 @@ import android.provider.Settings;
 import android.support.v4.app.ActivityCompat;
 import android.support.v4.content.ContextCompat;
 import android.support.v7.app.AppCompatActivity;
-import android.util.Log;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.widget.Button;
@@ -30,7 +30,11 @@ import static android.support.v7.app.AlertDialog.Builder;
 public class PermissionActivity extends AppCompatActivity {
 
     private static final String TAG = "PermissionActivity";
+    public static final String SP_NAME = "permission";
+    private static final String SP_KEY = "isFirst";
+
     public static final int PERMISSION_SINGLE = 1;
+
     public static final int CODE_SINGLE = 1;
     public static final int CODE_MUTI = 2;
     public static final int CODE_MUTI_SINGLE = 3;
@@ -46,28 +50,33 @@ public class PermissionActivity extends AppCompatActivity {
     private int flag = 1;
     //app名称
     private CharSequence label;
+    //申请权限类型
     private int type;
+    //单个权限
     private String name;
 
     private PermissionUtils permissionUtils;
+    private SharedPreferences sp;
+    private boolean first;
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate");
         type = getIntent().getIntExtra("type", 0);
         if (type == PERMISSION_SINGLE) {
             name = getIntent().getStringExtra("name");
             ActivityCompat.requestPermissions(PermissionActivity.this, new String[]{name}, CODE_SINGLE);
         } else {
-            permissionUtils = PermissionUtils.getInstance();
-            //当跳转到应用权限设置界面取消了之前的授权后，回到当前界面会启动两次（暂时不知道原因）
-            //暂时以标识符来解决这个问题
-            if (permissionUtils.isOpen()) {
+            //当跳转到应用权限设置界面取消了之前的授权后，app会重启进程，根据判断可把当前界面直接finish
+            sp = getSharedPreferences(SP_NAME, MODE_PRIVATE);
+            first = sp.getBoolean(SP_KEY, true);
+            if (!first) {
+                updateSp(true);
                 finish();
                 return;
             }
-            permissionUtils.openActivity();
+            updateSp(false);
+            permissionUtils = PermissionUtils.getInstance();
             label = getApplicationInfo().loadLabel(getPackageManager());
             checkPermission();
             if (permissions.size() > 0) {
@@ -75,6 +84,12 @@ public class PermissionActivity extends AppCompatActivity {
             }
         }
 
+    }
+
+    private void updateSp(boolean b) {
+        SharedPreferences.Editor editor = sp.edit();
+        editor.putBoolean(SP_KEY, b);
+        editor.commit();
     }
 
 
@@ -113,8 +128,8 @@ public class PermissionActivity extends AppCompatActivity {
             View view = LayoutInflater.from(this).inflate(R.layout.permission_info_item, container, false);
             ImageView icon = (ImageView) view.findViewById(R.id.icon);
             TextView name = (TextView) view.findViewById(R.id.name);
-            icon.setImageResource(permissionUtils.getImages()[i]);
-            name.setText(permissionUtils.getDescriptions()[i]);
+            icon.setImageResource(permissionUtils.getImage(permissions.get(i)));
+            name.setText(permissionUtils.getDescription(permissions.get(i)));
             container.addView(view);
         }
         dialog = new AlertDialog.Builder(this)
@@ -134,7 +149,6 @@ public class PermissionActivity extends AppCompatActivity {
     @Override
     public void onRequestPermissionsResult(int requestCode, String[] permissions, int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
-        Log.d(TAG, "onRequestPermissionsResult");
         switch (requestCode) {
             case CODE_SINGLE:
                 if (grantResults[0] == PackageManager.PERMISSION_GRANTED) {
@@ -147,6 +161,7 @@ public class PermissionActivity extends AppCompatActivity {
             case CODE_MUTI:
                 this.permissions.clear();
                 for (int i = 0; i < grantResults.length; i++) {
+                    //可能是禁止 也可能是永久禁止
                     if (grantResults[i] == PackageManager.PERMISSION_DENIED) {
                         this.permissions.add(permissions[i]);
                     }
@@ -161,30 +176,9 @@ public class PermissionActivity extends AppCompatActivity {
             case CODE_MUTI_SINGLE:
                 if (grantResults[0] == PackageManager.PERMISSION_DENIED) {
                     end = System.currentTimeMillis();
-                    //暂时用时间来判断 作为系统默认拒绝的情况（用户选择了禁止询问）
+                    //以时间判断作为用户前面点击了禁止询问后系统直接返回拒绝的情况
                     if (end - start < 100) {
-                        String name = getPermissionName(permissions[0]);
-                        alertDialog = new Builder(this)
-                                .setTitle(String.format(getString(R.string.permission_title), name))
-                                .setMessage(String.format(getString(R.string.permission_denied_with_naac), label, name, label))
-                                .setCancelable(false)
-                                .setNegativeButton(getString(R.string.reject), new OnClickListener() {
-                                    @Override
-                                    public void onClick(DialogInterface dialog, int which) {
-                                        alertDialog.dismiss();
-                                        permissionUtils.close();
-                                        finish();
-                                    }
-                                })
-                                .setPositiveButton(getString(R.string.go_to_setting), new OnClickListener() {
-                                    @Override
-                                    public void onClick(DialogInterface dialog, int which) {
-                                        flag = 3;
-                                        Uri packageURI = Uri.parse("package:" + getPackageName());
-                                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageURI);
-                                        startActivity(intent);
-                                    }
-                                }).show();
+                        showReason(permissions[index]);
                     } else {
                         reRequestPermission(permissions[index]);
                     }
@@ -200,6 +194,44 @@ public class PermissionActivity extends AppCompatActivity {
         }
     }
 
+
+    /**
+     * 无法获取权限 弹出提示
+     *
+     * @param permission
+     */
+    private void showReason(String permission) {
+        String name = getPermissionName(permission);
+        alertDialog = new Builder(this)
+                .setTitle(String.format(getString(R.string.permission_title), name))
+                .setMessage(String.format(getString(R.string.permission_denied_with_naac), label, name, label))
+                .setCancelable(false)
+                .setNegativeButton(getString(R.string.reject), new OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        alertDialog.dismiss();
+                        permissionUtils.close();
+                        finish();
+                    }
+                })
+                .setPositiveButton(getString(R.string.go_to_setting), new OnClickListener() {
+                    @Override
+                    public void onClick(DialogInterface dialog, int which) {
+                        flag = 3;
+                        Uri packageURI = Uri.parse("package:" + getPackageName());
+                        Intent intent = new Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS, packageURI);
+                        startActivity(intent);
+                    }
+                }).show();
+    }
+
+
+    /**
+     * 获取权限的说明名称
+     *
+     * @param permission
+     * @return
+     */
     public String getPermissionName(String permission) {
         String name = "";
         for (int i = 0; i < permissionUtils.getPermissions().length; i++) {
@@ -212,6 +244,11 @@ public class PermissionActivity extends AppCompatActivity {
     }
 
 
+    /**
+     * 重新申请权限
+     *
+     * @param permission
+     */
     private void reRequestPermission(final String permission) {
         String name = getPermissionName(permission);
         alertDialog = new Builder(this)
@@ -240,8 +277,7 @@ public class PermissionActivity extends AppCompatActivity {
     @Override
     protected void onResume() {
         super.onResume();
-        if (flag == 3) {
-            Log.d(TAG, "onResume");
+        if (flag == 3) {//去设置界面回来后  重新检查权限
             permissions.clear();
             checkPermission();
             if (permissions.size() > 0) {
@@ -251,6 +287,16 @@ public class PermissionActivity extends AppCompatActivity {
                 permissionUtils.finish();
                 finish();
             }
+        }
+    }
+
+    @Override
+    protected void onDestroy() {
+        super.onDestroy();
+        //这里加判断是因为finish()方法执行之后没有立即调用到这里 甚至是界面重新启动之后onCreate再次执行了  这里才执行
+        //这里是个坑 导致SP_KEY判断不准
+        if (first) {
+            updateSp(true);
         }
     }
 
