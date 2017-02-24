@@ -17,8 +17,8 @@ public class SplashActivity extends AppCompatActivity {
         PermissionUtils utils = PermissionUtils.getInstance();
         //utils.setBtnBackgroundResource(R.drawable.shape_btn_bg);
         //utils.setDescriptions(new String[]{"权限1","权限2","权限3"});
-        utils.getDescriptions()[2] = "手机信息";
-        utils.getPermissions()[2] = Manifest.permission.READ_PHONE_STATE;
+        utils.setDescription(2, "手机信息");
+        utils.setPermission(2, Manifest.permission.READ_PHONE_STATE);
         utils.checkMutiPermission(this, new PermissionUtils.Callback() {
             @Override
             public void onClose() {

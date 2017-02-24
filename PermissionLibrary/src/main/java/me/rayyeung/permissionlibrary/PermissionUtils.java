@@ -64,6 +64,7 @@ public class PermissionUtils {
 
     /**
      * 设置权限图片
+     * 在 {@link PermissionUtils#checkMutiPermission}之前调用
      *
      * @param images
      */
@@ -71,6 +72,56 @@ public class PermissionUtils {
         if (images != null && images.length == permissions.length) {
             this.images = images;
         }
+    }
+
+
+    /***
+     * 设置权限描述
+     * 在 {@link PermissionUtils#checkMutiPermission}之前调用
+     *
+     * @param descriptions
+     */
+    public void setDescriptions(String[] descriptions) {
+        if (descriptions != null && descriptions.length == permissions.length) {
+            this.descriptions = descriptions;
+        }
+    }
+
+
+    /**
+     * 设置单个权限
+     * @param index
+     * @param permission
+     */
+    public void setPermission(int index, String permission) {
+        if (index < 0 || index > permissions.length - 1) {
+            return;
+        }
+        permissions[index] = permission;
+    }
+
+    public void setImage(int index, int image) {
+        if (index < 0 || index > images.length - 1) {
+            return;
+        }
+        images[index] = image;
+    }
+
+    public void setDescription(int index, String description) {
+        if (index < 0 || index > descriptions.length - 1) {
+            return;
+        }
+        descriptions[index] = description;
+    }
+
+    /**
+     * 设置按钮背景
+     * 在 {@link PermissionUtils#checkMutiPermission}之前调用
+     *
+     * @param resid
+     */
+    public void setBtnBackgroundResource(@DrawableRes int resid) {
+        this.btnBackgroundResource = resid;
     }
 
     public String[] getPermissions() {
@@ -105,27 +156,6 @@ public class PermissionUtils {
             }
         }
         return description;
-    }
-
-    /***
-     * 设置权限描述
-     *
-     * @param descriptions
-     */
-    public void setDescriptions(String[] descriptions) {
-        if (descriptions != null && descriptions.length == permissions.length) {
-            this.descriptions = descriptions;
-        }
-    }
-
-    /**
-     * 设置按钮背景
-     * 在 {@link PermissionUtils#checkMutiPermission}之前调用
-     *
-     * @param resid
-     */
-    public void setBtnBackgroundResource(@DrawableRes int resid) {
-        this.btnBackgroundResource = resid;
     }
 
     public int getBtnBackgroundResource() {
